@@ -13,13 +13,18 @@ function readWave(name) {
   assert.equal(buffer.toString('ascii', 8, 12), 'WAVE');
   assert.equal(buffer.readUInt16LE(20), 1);
   assert.equal(buffer.readUInt16LE(22), 1);
-  assert.equal(buffer.readUInt32LE(24), 32000);
+  assert.equal(buffer.readUInt32LE(24), 44100);
   assert.equal(buffer.readUInt16LE(34), 16);
   let peak = 0;
+  let maximumJump = 0;
+  let previous = 0;
   for (let offset = 44; offset + 1 < buffer.length; offset += 2) {
-    peak = Math.max(peak, Math.abs(buffer.readInt16LE(offset) / 32767));
+    const value = buffer.readInt16LE(offset) / 32767;
+    peak = Math.max(peak, Math.abs(value));
+    maximumJump = Math.max(maximumJump, Math.abs(value - previous));
+    previous = value;
   }
-  return { buffer, peak, duration: (buffer.length - 44) / 2 / 32000 };
+  return { buffer, peak, maximumJump, duration: (buffer.length - 44) / 2 / 44100 };
 }
 
 test('contains the complete semantic sound bank', () => {
@@ -42,5 +47,6 @@ test('all cues are short, quiet PCM WAV files', () => {
     const sound = readWave(path.basename(file, '.wav'));
     assert.ok(sound.duration >= 0.05 && sound.duration <= 0.7, `${file} duration ${sound.duration}`);
     assert.ok(sound.peak > 0.08 && sound.peak <= 0.25, `${file} peak ${sound.peak}`);
+    assert.ok(sound.maximumJump <= 0.05, `${file} discontinuity ${sound.maximumJump}`);
   }
 });

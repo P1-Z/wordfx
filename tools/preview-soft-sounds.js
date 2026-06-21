@@ -6,6 +6,7 @@ const { playSound, warmSoundSystem } = require('../sound');
 
 const wait = milliseconds => new Promise(resolve => setTimeout(resolve, milliseconds));
 const preview = [
+  ['opening or loading', 760],
   ['navigate', 230],
   ['select', 280],
   ['confirm', 430],
