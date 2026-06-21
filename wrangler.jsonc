@@ -1,0 +1,31 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "wordfx-chat",
+  "main": "worker/index.js",
+  "compatibility_date": "2026-06-21",
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "CHAT_ROOMS",
+        "class_name": "ChatRoom"
+      },
+      {
+        "name": "ROOM_DIRECTORY",
+        "class_name": "RoomDirectory"
+      }
+    ]
+  },
+  "migrations": [
+    {
+      "tag": "v1",
+      "new_sqlite_classes": ["ChatRoom"]
+    },
+    {
+      "tag": "v2",
+      "new_sqlite_classes": ["RoomDirectory"]
+    }
+  ],
+  "observability": {
+    "enabled": true
+  }
+}

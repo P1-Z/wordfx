@@ -1,0 +1,23 @@
+{
+  "name": "fx",
+  "version": "1.1.0",
+  "private": true,
+  "description": "A blank terminal canvas with animated text effects",
+  "author": "p1z",
+  "publisher": "p1z",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "check": "node --check sound.js && node --check storage.js && node --check credentials.js && node --check theme.js && node --check theme-mode.js && node --check wordfx.js && node --check command-mode.js && node --check messenger-mode.js && node --check updater.js && node --check worker/index.js && node --check note-mode.js && node --check word-mode.js && node --check note-history-mode.js && node --check list-mode.js && node --check guide-mode.js && node --check help-mode.js && node --check system-monitor-mode.js && node --check love-mode.js && node --check media-control-mode.js",
+    "test:updater": "node --test test/updater.test.js",
+    "test:relay": "node test/messenger-integration.js",
+    "test:relay-idle": "node test/messenger-idle-timeout.js",
+    "release": "powershell -NoProfile -ExecutionPolicy Bypass -File build-release.ps1",
+    "start": "node wordfx.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/P1-Z/wordfx.git"
+  }
+}

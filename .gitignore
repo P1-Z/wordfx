@@ -1,0 +1,17 @@
+node_modules/
+.wrangler/
+dist/
+data/
+notes/
+*.lnk
+linked-apps.json
+linked-directories.json
+theme.json
+sound.zip
+sound-originals/
+.env
+.env.*
+.dev.vars
+.dev.vars.*
+npm-debug.log*
+
