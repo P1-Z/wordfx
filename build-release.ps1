@@ -17,7 +17,7 @@ foreach ($name in @('package.json', 'README.md', 'relay-config.json', 'launch-wo
   $source = Join-Path $root $name
   if (Test-Path -LiteralPath $source) { Copy-Item -LiteralPath $source -Destination $stage }
 }
-foreach ($name in @('sound-player.ps1', 'sound')) {
+foreach ($name in @('sound-player.ps1', 'sound', 'tools')) {
   $source = Join-Path $root $name
   if (Test-Path -LiteralPath $source) { Copy-Item -LiteralPath $source -Destination $stage -Recurse }
 }

@@ -89,7 +89,7 @@ The canvas is intentionally ephemeral: quitting clears it.
 
 ## Sound effects
 
-Windows builds load WAV effects from the `sound` folder. `type_01.wav` through `type_05.wav` rotate in every text-entry screen. `opening or loading.wav` plays during startup and screen openings, while `closing or quitting.wav` plays when screens or WordFX close. `notification.wav` plays for incoming chat messages only while you have scrolled away from the latest messages. `error.wav` plays for failures, while `note_dissolve.wav` accompanies note saves, fix-note saves, and outgoing chat-message dissolution. Missing files are ignored. Set `WORDFX_SOUND=0` before launch to disable all sound effects.
+Windows builds load a 31-file soft sound library from the `sound` folder. The original procedural bank uses felt taps, warm chimes, filtered noise, and subtle vinyl texture at restrained volume. Eight typing variations rotate across text-entry screens, while distinct cues cover navigation, selection, confirmation, commands, toggles, login, notes, errors, chat send/receive, notifications, and room joins/leaves. Run `npm run sounds:preview` to hear a short tour or `npm run sounds:generate` to rebuild every WAV deterministically. Missing files are ignored. Set `WORDFX_SOUND=0` before launch to disable all sound effects.
 
 ## Portable data
 

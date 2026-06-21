@@ -1382,6 +1382,7 @@ async function registerFirstUser() {
     }
     try {
       AUTH_USER = registerCredentials(username, password);
+      playSound('success');
       process.stdout.write(loginStatus(layout, `Account created for ${AUTH_USER}`, paint.green));
       await wait(750);
       return true;
@@ -1429,6 +1430,7 @@ async function authenticate() {
     await wait(280);
 
     if (credentialsMatch(user, password)) {
+      playSound('success');
       process.stdout.write(loginStatus(layout, 'Access granted', paint.green));
       await wait(260);
       return true;
@@ -1437,6 +1439,7 @@ async function authenticate() {
     failedAttempts++;
     const remaining = 3 - failedAttempts;
     if (remaining === 0) {
+      playSound('error');
       process.stdout.write(loginStatus(layout, 'Access denied · returning to ://', paint.red));
       await wait(900);
       return false;
@@ -1950,8 +1953,13 @@ async function runEnhancedConsole() {
     commandActivity = 'PROCESSING COMMAND';
     terminal.pause();
     try {
-      if (commands[name]) await commands[name](parseArguments(rawArguments), rawArguments);
-      else await animatedReply(`Unknown command: ${name}. Type help to list commands.`, paint.red);
+      if (commands[name]) {
+        playSound('command');
+        await commands[name](parseArguments(rawArguments), rawArguments);
+      } else {
+        playSound('error');
+        await animatedReply(`Unknown command: ${name}. Type help to list commands.`, paint.red);
+      }
     } catch (error) {
       playSound('error');
       await animatedReply(error.message, paint.red);

@@ -219,12 +219,12 @@ function main() {
     const key = data.toString('utf8');
     playTypingSound(key);
     if (key === '\x1b' || key === '\x03') return finish();
-    if (key === '\x1b[A') selected--;
-    else if (key === '\x1b[B') selected++;
-    else if (key === '\x1b[5~') selected -= layout.page;
-    else if (key === '\x1b[6~') selected += layout.page;
-    else if (key === '\x1b[H' || key === '\x1b[1~') selected = 0;
-    else if (key === '\x1b[F' || key === '\x1b[4~') selected = Math.max(0, filteredEntries.length - 1);
+    if (key === '\x1b[A') { selected--; playSound('navigate'); }
+    else if (key === '\x1b[B') { selected++; playSound('navigate'); }
+    else if (key === '\x1b[5~') { selected -= layout.page; playSound('navigate'); }
+    else if (key === '\x1b[6~') { selected += layout.page; playSound('navigate'); }
+    else if (key === '\x1b[H' || key === '\x1b[1~') { selected = 0; playSound('navigate'); }
+    else if (key === '\x1b[F' || key === '\x1b[4~') { selected = Math.max(0, filteredEntries.length - 1); playSound('navigate'); }
     else if (key === '\x7f' || key === '\b') {
       if (query) query = query.slice(0, -1);
       else if (activeMode === 'folder') {
@@ -236,6 +236,7 @@ function main() {
     } else if (key === '\r' || key === '\n') {
       const entry = filteredEntries[selected];
       if (!entry) return;
+      playSound('select');
       if (activeMode === 'links') {
         activeMode = 'folder';
         currentTarget = path.resolve(entry.value);

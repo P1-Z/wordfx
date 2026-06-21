@@ -350,6 +350,7 @@ function forbiddenBannerLines() {
 
 function startClearAnimation() {
   if (cells.length === 0) return;
+  playSound('note_dissolve');
   const width = size().width;
   const items = [];
   for (let i = 0; i < cells.length; i++) {
@@ -1089,6 +1090,7 @@ function applyEffect(effect) {
     status = activeEffect === 'none'
       ? 'Typing effect disabled.'
       : `${effects[activeEffect].label} enabled for new text.`;
+    playSound(activeEffect === 'none' ? 'toggle_off' : 'toggle_on');
     statusUntil = Date.now() + 1800;
     return;
   }
@@ -1099,11 +1101,13 @@ function applyEffect(effect) {
     if (effect === 'matrix') cells[i].fxSeed = Math.random();
   }
   status = `Applied ${effects[effect].label}.`;
+  playSound('select');
   statusUntil = Date.now() + 1800;
   anchor = null;
 }
 
 function moveHorizontal(delta, extend) {
+  const previousCursor = cursor;
   if (extend && anchor === null) anchor = cursor;
   if (!extend && anchor !== null) {
     const range = selectedRange();
@@ -1113,14 +1117,17 @@ function moveHorizontal(delta, extend) {
   }
   cursor = Math.max(0, Math.min(cells.length, cursor + delta));
   if (!extend) anchor = null;
+  if (cursor !== previousCursor) playSound('navigate');
 }
 
 function moveVertical(delta, extend) {
+  const previousCursor = cursor;
   if (extend && anchor === null) anchor = cursor;
   const width = size().width;
   const pos = logicalPosition(cursor, width);
   cursor = indexAt(Math.max(0, pos.row + delta), pos.col, width);
   if (!extend) anchor = null;
+  if (cursor !== previousCursor) playSound('navigate');
 }
 
 function cleanup() {
@@ -1159,7 +1166,10 @@ function handleKey(data) {
   else if (key === '\x02') applyEffect('bold');
   else if (key === '\x15') applyEffect('underline');
   else if (key === '\x00' || key === '\x1b[49~') applyEffect('none');
-  else if (key === '\x1bOP' || key === '\x1b[11~') showHelp = !showHelp;
+  else if (key === '\x1bOP' || key === '\x1b[11~') {
+    showHelp = !showHelp;
+    playSound(showHelp ? 'toggle_on' : 'toggle_off');
+  }
   else if (key === '\r' || key === '\n') {
     if (!runEnteredCommand()) startClearAnimation();
   }
@@ -1168,8 +1178,8 @@ function handleKey(data) {
   else if (/^\x1b\[(?:1;2)?C$/.test(key)) moveHorizontal(1, key.includes(';2'));
   else if (/^\x1b\[(?:1;2)?A$/.test(key)) moveVertical(-1, key.includes(';2'));
   else if (/^\x1b\[(?:1;2)?B$/.test(key)) moveVertical(1, key.includes(';2'));
-  else if (key === '\x1b[H' || key === '\x1b[1~') { cursor = 0; anchor = null; }
-  else if (key === '\x1b[F' || key === '\x1b[4~') { cursor = cells.length; anchor = null; }
+  else if (key === '\x1b[H' || key === '\x1b[1~') { cursor = 0; anchor = null; playSound('navigate'); }
+  else if (key === '\x1b[F' || key === '\x1b[4~') { cursor = cells.length; anchor = null; playSound('navigate'); }
   else if (!key.startsWith('\x1b') && !/[\x00-\x08\x0b-\x1f]/.test(key)) insertWithAutoPair(key);
   render();
 }
