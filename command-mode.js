@@ -376,8 +376,7 @@ async function runMediaControlMode() {
 }
 
 async function launchMessengerWindow(args = []) {
-  await warmSoundSystem();
-  playSound('opening or loading');
+  await playWindowTransition('OPENING PRIVATE MESSENGER');
   await openTerminal(process.execPath, [path.join(__dirname, 'messenger-mode.js'), ...args], {
     cwd: __dirname,
     title: ':// PRIVATE MESSENGER',
@@ -1689,7 +1688,16 @@ async function runEnhancedConsole() {
       if (args.length && !['host', 'join'].includes(args[0].toLowerCase())) {
         throw new Error('Usage: chat [host|join]');
       }
-      await launchMessengerWindow(args.map(argument => argument.toLowerCase()));
+      commandFullscreenEffect = true;
+      try {
+        await launchMessengerWindow(args.map(argument => argument.toLowerCase()));
+        chromeSnapshot = commandHeaderSnapshot();
+        await renderCommandHeader(chromeFrame);
+        terminal.line = '';
+        terminal.cursor = 0;
+      } finally {
+        commandFullscreenEffect = false;
+      }
       await animatedReply('Messenger opened in a separate window', paint.green);
     },
     update: async args => {
