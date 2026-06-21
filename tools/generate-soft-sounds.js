@@ -97,6 +97,35 @@ function addChime(buffer, frequency, start, duration, volume = 0.45) {
   addTone(buffer, { frequency: frequency * 3.98, start, duration: duration * 0.45, volume: volume * 0.055, attack: 0.004, releasePower: 3.5, warmth: 0 });
 }
 
+function addBubble(buffer, options = {}) {
+  const {
+    start = 0,
+    frequency = 220,
+    duration = 0.12,
+    volume = 0.16,
+  } = options;
+  addTone(buffer, {
+    frequency,
+    endFrequency: frequency * 1.72,
+    start,
+    duration,
+    volume,
+    attack: 0.006,
+    releasePower: 3.1,
+    warmth: 0.055,
+  });
+  addTone(buffer, {
+    frequency: frequency * 0.51,
+    endFrequency: frequency * 0.76,
+    start,
+    duration: duration * 0.82,
+    volume: volume * 0.24,
+    attack: 0.008,
+    releasePower: 3.5,
+    warmth: 0,
+  });
+}
+
 function addTapeTexture(buffer, volume = 0.018) {
   let filtered = 0;
   for (let index = 0; index < buffer.length; index++) {
@@ -218,14 +247,21 @@ for (let variant = 1; variant <= 3; variant++) sounds.push([`chat_send_${String(
   sounds.push(['notification', buffer, 0.23]);
 }
 {
-  const buffer = samples(0.68);
-  addTapeTexture(buffer, 0.014);
-  for (let grain = 0; grain < 12; grain++) {
-    const start = 0.025 + grain * 0.038;
-    addSoftNoise(buffer, { start, duration: 0.085, volume: 0.11, smoothing: 0.86 + grain * 0.004, releasePower: 2.8 });
-    addTone(buffer, { frequency: 520 - grain * 22, start, duration: 0.13, volume: 0.08, attack: 0.003, releasePower: 3.4, warmth: 0.08 });
+  const buffer = samples(0.7);
+  const pitches = [185, 232, 204, 286, 248, 342, 278, 405, 326, 468, 386];
+  const spacing = [0, 0.052, 0.108, 0.158, 0.224, 0.281, 0.344, 0.401, 0.477, 0.536, 0.59];
+  for (let bubble = 0; bubble < pitches.length; bubble++) {
+    addBubble(buffer, {
+      start: 0.012 + spacing[bubble],
+      frequency: pitches[bubble],
+      duration: Math.max(0.075, 0.13 - bubble * 0.0045),
+      volume: 0.13 + (bubble % 3) * 0.012,
+    });
   }
-  sounds.push(['note_dissolve', buffer, 0.21]);
+  // Keep later assets byte-stable when this cue's synthesis changes. The
+  // previous dissolve consumed this many deterministic noise samples.
+  for (let skippedNoiseSample = 0; skippedNoiseSample < 74976; skippedNoiseSample++) random();
+  sounds.push(['note_dissolve', buffer, 0.2]);
 }
 {
   const buffer = samples(0.34);
