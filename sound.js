@@ -12,11 +12,18 @@ let playerReady = false;
 let readyPromise = null;
 let resolveReady = null;
 let typingIndex = 0;
+const variantIndexes = new Map();
 let loopGeneration = 0;
 const activeLoops = new Map();
 const MINIMUM_LOOP_PLAYBACK_MS = 750;
 const CUE_DEBOUNCE_MS = 120;
 const lastCueAt = new Map();
+const SOUND_VARIANTS = Object.freeze({
+  navigate: 3,
+  select: 2,
+  confirm: 2,
+  chat_send: 3,
+});
 
 function soundEnabled() {
   return process.platform === 'win32'
@@ -100,7 +107,14 @@ function send(command, name) {
 function playSound(name) {
   const now = Date.now();
   if (now - (lastCueAt.get(name) || 0) < CUE_DEBOUNCE_MS) return false;
-  const sent = send('play', name);
+  const count = SOUND_VARIANTS[name] || 0;
+  let resolvedName = name;
+  if (count) {
+    const nextIndex = (variantIndexes.get(name) || 0) % count + 1;
+    variantIndexes.set(name, nextIndex);
+    resolvedName = `${name}_${String(nextIndex).padStart(2, '0')}`;
+  }
+  const sent = send('play', resolvedName);
   if (sent) lastCueAt.set(name, now);
   return sent;
 }
@@ -139,7 +153,7 @@ function playTypingSound(value) {
   const isBackspace = key === '\x7f' || key === '\b';
   const isSinglePrintableCharacter = key.length === 1 && !/[\x00-\x1f\x7f]/.test(key);
   if (!isBackspace && !isSinglePrintableCharacter) return false;
-  typingIndex = typingIndex % 5 + 1;
+  typingIndex = typingIndex % 8 + 1;
   return playSound(`type_${String(typingIndex).padStart(2, '0')}`);
 }
 

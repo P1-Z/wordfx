@@ -71,6 +71,7 @@ function finishSelection(code) {
 
 function applySelection() {
   pendingTheme = names[selected];
+  playSound('confirm');
   setTheme(pendingTheme);
   render();
 }
@@ -92,10 +93,12 @@ process.stdin.on('data', data => {
     const sequence = key.slice(index, index + 3);
     if (sequence === '\x1b[A' || sequence === '\x1b[D') {
       selected = (selected - 1 + names.length) % names.length;
+      playSound('navigate');
       changed = true;
       index += 3;
     } else if (sequence === '\x1b[B' || sequence === '\x1b[C') {
       selected = (selected + 1) % names.length;
+      playSound('navigate');
       changed = true;
       index += 3;
     } else if (key[index] === '\r' || key[index] === '\n') {

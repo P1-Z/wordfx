@@ -921,6 +921,7 @@ async function runChatInterface({ transport, username, hostMode, roomLabel, acce
     if (index === -1) index = delta < 0 ? entries.length : -1;
     index = Math.max(0, Math.min(entries.length - 1, index + delta));
     state.selectedMessageId = entries[index].id;
+    playSound('navigate');
     state.followBottom = index === entries.length - 1;
     if (state.followBottom) state.unread = 0;
   }
@@ -941,10 +942,12 @@ async function runChatInterface({ transport, username, hostMode, roomLabel, acce
 
   function event(event_) {
     if (event_.type === 'connected') {
+      playSound('room_join');
       state.connected = true;
       state.remoteTyping = false;
       appendHistory({ kind: 'event', text: `${event_.username} JOINED  //  SECURE CHANNEL OPEN`, color: paint.green });
     } else if (event_.type === 'disconnected') {
+      playSound('room_leave');
       state.connected = false;
       state.remoteTyping = false;
       appendHistory({ kind: 'event', text: `${event_.username || 'PEER'} LEFT  //  CHANNEL CLOSED`, color: paint.yellow });
@@ -961,7 +964,7 @@ async function runChatInterface({ transport, username, hostMode, roomLabel, acce
 
   transport.onUiEvent = event;
   transport.onUiMessage = message => {
-    if (shouldNotifyForIncomingMessage(state)) playSound('notification');
+    playSound(shouldNotifyForIncomingMessage(state) ? 'notification' : 'chat_receive');
     state.remoteTyping = false;
     appendHistory({
       kind: 'message',
@@ -1009,7 +1012,7 @@ async function runChatInterface({ transport, username, hostMode, roomLabel, acce
     }
 
     state.sending = true;
-    playSound('note_dissolve');
+    playSound('chat_send');
     syncTyping(false);
     if (state.typingTimer) {
       clearTimeout(state.typingTimer);
@@ -1060,12 +1063,14 @@ async function runChatInterface({ transport, username, hostMode, roomLabel, acce
         if (state.replySelectionActive) {
           state.replySelectionActive = false;
           state.selectedMessageId = null;
+          playSound('toggle_off');
         } else {
           const entries = messageEntries();
           if (entries.length) {
             state.replySelectionActive = true;
             state.selectedMessageId = entries[entries.length - 1].id;
             state.followBottom = true;
+            playSound('toggle_on');
           }
         }
       } else if (key === '\x1b[A') {
@@ -1106,6 +1111,7 @@ async function runChatInterface({ transport, username, hostMode, roomLabel, acce
           }
           state.replySelectionActive = false;
           state.selectedMessageId = null;
+          playSound('confirm');
           refresh();
           return;
         }

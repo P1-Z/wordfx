@@ -138,6 +138,7 @@ function acceptCharacter(character) {
   if (character === target[typed.length]) correctKeys++;
   typed += character;
   if (typed === target) {
+    playSound(wordIndex === WORDS_PER_ROUND - 1 ? 'success' : 'confirm');
     wordIndex++;
     typed = '';
     if (wordIndex === WORDS_PER_ROUND) {
