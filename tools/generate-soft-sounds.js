@@ -5,7 +5,7 @@
 const fs = require('node:fs');
 const path = require('node:path');
 
-const SAMPLE_RATE = 32000;
+const SAMPLE_RATE = 44100;
 const TAU = Math.PI * 2;
 const outputDirectory = path.join(__dirname, '..', 'sound');
 let randomState = 0x51a55eed;
@@ -97,13 +97,12 @@ function addChime(buffer, frequency, start, duration, volume = 0.45) {
   addTone(buffer, { frequency: frequency * 3.98, start, duration: duration * 0.45, volume: volume * 0.055, attack: 0.004, releasePower: 3.5, warmth: 0 });
 }
 
-function addVinylDust(buffer, volume = 0.018) {
+function addTapeTexture(buffer, volume = 0.018) {
   let filtered = 0;
   for (let index = 0; index < buffer.length; index++) {
     filtered = filtered * 0.94 + (random() * 2 - 1) * 0.06;
     const slowWobble = 0.72 + Math.sin(index / SAMPLE_RATE * TAU * 0.63) * 0.18;
     buffer[index] += filtered * volume * slowWobble;
-    if (random() < 0.00032) buffer[index] += (random() * 2 - 1) * volume * 2.4;
   }
 }
 
@@ -193,7 +192,6 @@ for (let variant = 1; variant <= 3; variant++) sounds.push([`chat_send_${String(
 
 {
   const buffer = samples(0.62);
-  addVinylDust(buffer, 0.021);
   addChime(buffer, 220, 0, 0.52, 0.3);
   addChime(buffer, 277.18, 0.07, 0.48, 0.24);
   addChime(buffer, 329.63, 0.15, 0.4, 0.2);
@@ -201,7 +199,6 @@ for (let variant = 1; variant <= 3; variant++) sounds.push([`chat_send_${String(
 }
 {
   const buffer = samples(0.5);
-  addVinylDust(buffer, 0.016);
   addChime(buffer, 329.63, 0, 0.38, 0.24);
   addChime(buffer, 261.63, 0.07, 0.36, 0.22);
   addChime(buffer, 196, 0.14, 0.31, 0.18);
@@ -215,14 +212,14 @@ for (let variant = 1; variant <= 3; variant++) sounds.push([`chat_send_${String(
 }
 {
   const buffer = samples(0.48);
-  addVinylDust(buffer, 0.012);
+  addTapeTexture(buffer, 0.006);
   addChime(buffer, 392, 0, 0.36, 0.33);
   addChime(buffer, 523.25, 0.105, 0.32, 0.28);
   sounds.push(['notification', buffer, 0.23]);
 }
 {
   const buffer = samples(0.68);
-  addVinylDust(buffer, 0.026);
+  addTapeTexture(buffer, 0.014);
   for (let grain = 0; grain < 12; grain++) {
     const start = 0.025 + grain * 0.038;
     addSoftNoise(buffer, { start, duration: 0.085, volume: 0.11, smoothing: 0.86 + grain * 0.004, releasePower: 2.8 });
