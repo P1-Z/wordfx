@@ -150,9 +150,13 @@ async function playWindowTransition(label, playCue = true) {
     await wait(22);
   }
   await wait(35);
-  // Shut down the sound player before the child process boots. The child
-  // will create its own player; running two at once causes audio stacking.
-  shutdownSoundSystem();
+  // Schedule the parent's sound player shutdown after the loading cue
+  // finishes playing. The child process creates its own player -- having
+  // both active at once causes audio contention on some systems.
+  if (playCue) {
+    const timer = setTimeout(() => shutdownSoundSystem(), 400);
+    timer.unref?.();
+  }
   process.stdout.write('\x1b[3J\x1b[2J\x1b[H');
 }
 

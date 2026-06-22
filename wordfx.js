@@ -713,10 +713,11 @@ function runEnteredCommand() {
 
 function playLoadingCue() {
   playSound('opening or loading');
-  // Shut down the parent sound player before spawning a child process.
-  // Each child creates its own PowerShell sound player -- without this,
-  // two independent audio systems run simultaneously and sounds stack.
-  shutdownSoundSystem();
+  // Schedule a gentle shutdown after the loading cue finishes playing
+  // (~620ms). This avoids two PowerShell sound players competing for
+  // the audio device at the same time without cutting the sound short.
+  const timer = setTimeout(() => shutdownSoundSystem(), 660);
+  timer.unref?.();
 }
 
 function launchMediaControlProcess() {
