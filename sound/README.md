@@ -9,5 +9,7 @@ node tools/generate-soft-sounds.js
 ```
 
 The bank is intentionally quiet and short: felt taps, warm sine chimes,
-filtered noise, smooth tape texture, rising bubble gestures, and small pitch gestures. File amplitude is
-limited at generation time so rapid interactions remain soft.
+filtered noise, smooth tape texture, rising bubble gestures, and small pitch
+gestures. Typing, Space, Backspace, Return, navigation, selection, confirmation,
+and send cues each have randomized variants with recent-repeat avoidance. File
+amplitude is limited at generation time so rapid interactions remain soft.

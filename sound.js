@@ -11,19 +11,48 @@ let player = null;
 let playerReady = false;
 let readyPromise = null;
 let resolveReady = null;
-let typingIndex = 0;
-const variantIndexes = new Map();
+const recentVariantIndexes = new Map();
 let loopGeneration = 0;
 const activeLoops = new Map();
 const MINIMUM_LOOP_PLAYBACK_MS = 750;
 const CUE_DEBOUNCE_MS = 120;
 const lastCueAt = new Map();
 const SOUND_VARIANTS = Object.freeze({
-  navigate: 3,
-  select: 2,
-  confirm: 2,
-  chat_send: 3,
+  navigate: 5,
+  select: 4,
+  confirm: 4,
+  chat_send: 5,
 });
+const TYPING_VARIANTS = Object.freeze({
+  type: 12,
+  type_space: 4,
+  type_backspace: 4,
+  type_return: 3,
+});
+
+function pickVariantIndex(name, count, random = Math.random, historyMap = recentVariantIndexes) {
+  if (!Number.isInteger(count) || count < 1) return 0;
+  const history = historyMap.get(name) || [];
+  // With four or more samples, keep the last two out of the draw. This avoids
+  // obvious repeats while retaining enough choices to prevent a new pattern.
+  // Three-sample banks remember one draw; two-sample banks stay fully random
+  // instead of falling into an equally mechanical A/B alternation.
+  const memory = count >= 4 ? 2 : count === 3 ? 1 : 0;
+  const excluded = new Set(memory ? history.slice(-memory) : []);
+  const candidates = [];
+  for (let index = 1; index <= count; index++) {
+    if (!excluded.has(index)) candidates.push(index);
+  }
+  const draw = Math.max(0, Math.min(0.999999999, Number(random()) || 0));
+  const selected = candidates[Math.floor(draw * candidates.length)];
+  historyMap.set(name, [...history, selected].slice(-Math.max(1, memory)));
+  return selected;
+}
+
+function variantName(name, count, random = Math.random, historyMap = recentVariantIndexes) {
+  const index = pickVariantIndex(name, count, random, historyMap);
+  return index ? `${name}_${String(index).padStart(2, '0')}` : name;
+}
 
 function soundEnabled() {
   return process.platform === 'win32'
@@ -108,12 +137,7 @@ function playSound(name) {
   const now = Date.now();
   if (now - (lastCueAt.get(name) || 0) < CUE_DEBOUNCE_MS) return false;
   const count = SOUND_VARIANTS[name] || 0;
-  let resolvedName = name;
-  if (count) {
-    const nextIndex = (variantIndexes.get(name) || 0) % count + 1;
-    variantIndexes.set(name, nextIndex);
-    resolvedName = `${name}_${String(nextIndex).padStart(2, '0')}`;
-  }
+  const resolvedName = count ? variantName(name, count) : name;
   const sent = send('play', resolvedName);
   if (sent) lastCueAt.set(name, now);
   return sent;
@@ -151,10 +175,19 @@ function playTypingSound(value) {
   const key = Buffer.isBuffer(value) ? value.toString('utf8') : String(value);
   if (key.startsWith('\x1b')) return false;
   const isBackspace = key === '\x7f' || key === '\b';
-  const isSinglePrintableCharacter = key.length === 1 && !/[\x00-\x1f\x7f]/.test(key);
-  if (!isBackspace && !isSinglePrintableCharacter) return false;
-  typingIndex = typingIndex % 8 + 1;
-  return playSound(`type_${String(typingIndex).padStart(2, '0')}`);
+  const isReturn = key === '\r' || key === '\n';
+  const isSinglePrintableCharacter = Array.from(key).length === 1 && !/[\x00-\x1f\x7f]/.test(key);
+  if (!isBackspace && !isReturn && !isSinglePrintableCharacter) return false;
+  const family = isBackspace
+    ? 'type_backspace'
+    : isReturn
+      ? 'type_return'
+      : key === ' '
+        ? 'type_space'
+        : 'type';
+  // Typing bypasses the UI-cue debounce. Each physical keystroke should have
+  // a response, and the anti-repeat picker keeps fast input from sounding rigid.
+  return send('play', variantName(family, TYPING_VARIANTS[family]));
 }
 
 module.exports = {
@@ -164,4 +197,5 @@ module.exports = {
   startSoundLoop,
   stopSound,
   warmSoundSystem,
+  _testing: Object.freeze({ pickVariantIndex, variantName }),
 };

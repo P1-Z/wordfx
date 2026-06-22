@@ -38,6 +38,8 @@ function addTone(buffer, options) {
     releasePower = 2.2,
     warmth = 0.16,
     phaseOffset = 0,
+    wow = 0,
+    flutter = 0,
   } = options;
   const startIndex = Math.max(0, Math.round(start * SAMPLE_RATE));
   const endIndex = Math.min(buffer.length, startIndex + Math.round(duration * SAMPLE_RATE));
@@ -45,7 +47,10 @@ function addTone(buffer, options) {
   for (let index = startIndex; index < endIndex; index++) {
     const time = (index - startIndex) / SAMPLE_RATE;
     const progress = time / Math.max(duration, 0.001);
-    const currentFrequency = frequency * ((endFrequency / frequency) ** progress);
+    const drift = 1
+      + Math.sin(time * TAU * 1.17 + phaseOffset) * wow
+      + Math.sin(time * TAU * 7.9 + phaseOffset * 1.7) * flutter;
+    const currentFrequency = frequency * ((endFrequency / frequency) ** progress) * drift;
     phase += TAU * currentFrequency / SAMPLE_RATE;
     const body = Math.sin(phase) + warmth * Math.sin(phase * 2 + 0.3) + warmth * 0.32 * Math.sin(phase * 3 + 0.8);
     buffer[index] += body * envelope(time, duration, attack, releasePower) * volume;
@@ -88,12 +93,25 @@ function addFeltTap(buffer, options = {}) {
     attack: 0.0015,
     releasePower: 3.7,
     warmth: 0.27,
+    wow: 0.003,
+    flutter: 0.0015,
+  });
+  addTone(buffer, {
+    frequency: pitch * 0.48,
+    endFrequency: pitch * 0.41,
+    start: start + 0.002,
+    duration: duration * 0.82,
+    volume: volume * 0.18,
+    attack: 0.002,
+    releasePower: 4.2,
+    warmth: 0.35,
+    wow: 0.005,
   });
 }
 
 function addChime(buffer, frequency, start, duration, volume = 0.45) {
-  addTone(buffer, { frequency, start, duration, volume, attack: 0.012, releasePower: 2.7, warmth: 0.11 });
-  addTone(buffer, { frequency: frequency * 2.01, start, duration: duration * 0.72, volume: volume * 0.19, attack: 0.008, releasePower: 3.2, warmth: 0.03 });
+  addTone(buffer, { frequency, start, duration, volume, attack: 0.012, releasePower: 2.7, warmth: 0.11, wow: 0.004, flutter: 0.001 });
+  addTone(buffer, { frequency: frequency * 2.01, start, duration: duration * 0.72, volume: volume * 0.19, attack: 0.008, releasePower: 3.2, warmth: 0.03, wow: 0.003 });
   addTone(buffer, { frequency: frequency * 3.98, start, duration: duration * 0.45, volume: volume * 0.055, attack: 0.004, releasePower: 3.5, warmth: 0 });
 }
 
@@ -128,10 +146,13 @@ function addBubble(buffer, options = {}) {
 
 function addTapeTexture(buffer, volume = 0.018) {
   let filtered = 0;
+  let dust = 0;
   for (let index = 0; index < buffer.length; index++) {
     filtered = filtered * 0.94 + (random() * 2 - 1) * 0.06;
+    if (random() > 0.99986) dust = (random() * 2 - 1) * 0.32;
+    dust *= 0.72;
     const slowWobble = 0.72 + Math.sin(index / SAMPLE_RATE * TAU * 0.63) * 0.18;
-    buffer[index] += filtered * volume * slowWobble;
+    buffer[index] += (filtered * slowWobble + dust) * volume;
   }
 }
 
@@ -154,6 +175,7 @@ function normalize(buffer, targetPeak = 0.28) {
 }
 
 function writeWave(name, buffer, targetPeak) {
+  addTapeTexture(buffer, name.startsWith('type_') ? 0.012 : 0.008);
   normalize(buffer, targetPeak);
   const dataSize = buffer.length * 2;
   const output = Buffer.alloc(44 + dataSize);
@@ -178,46 +200,92 @@ function writeWave(name, buffer, targetPeak) {
 }
 
 function typingSound(variant) {
-  const buffer = samples(0.052 + variant * 0.0015);
-  addFeltTap(buffer, { pitch: 168 + variant * 5, volume: 0.62, duration: 0.047 + variant * 0.001 });
-  addSoftNoise(buffer, { start: 0.004, duration: 0.025, volume: 0.08, smoothing: 0.9, releasePower: 3.8 });
+  const profiles = [
+    [176, 0.054, 0.58], [164, 0.059, 0.61], [189, 0.052, 0.55],
+    [171, 0.064, 0.59], [198, 0.049, 0.54], [181, 0.057, 0.6],
+    [158, 0.066, 0.62], [193, 0.055, 0.56], [168, 0.061, 0.6],
+    [185, 0.05, 0.57], [174, 0.056, 0.61], [201, 0.053, 0.54],
+  ];
+  const [pitch, duration, volume] = profiles[variant - 1];
+  const buffer = samples(duration + 0.012);
+  addFeltTap(buffer, { pitch, volume, duration });
+  addSoftNoise(buffer, { start: 0.003, duration: duration * 0.55, volume: 0.09, smoothing: 0.91, releasePower: 4.1 });
+  return buffer;
+}
+
+function spaceSound(variant) {
+  const profiles = [[126, 0.088], [118, 0.097], [134, 0.083], [122, 0.092]];
+  const [pitch, duration] = profiles[variant - 1];
+  const buffer = samples(duration + 0.018);
+  addFeltTap(buffer, { pitch, volume: 0.54, duration });
+  addSoftNoise(buffer, { start: 0.005, duration: duration * 0.78, volume: 0.13, smoothing: 0.94, releasePower: 3.6 });
+  return buffer;
+}
+
+function backspaceSound(variant) {
+  const profiles = [[151, 118], [143, 109], [158, 121], [147, 113]];
+  const [frequency, endFrequency] = profiles[variant - 1];
+  const buffer = samples(0.082 + variant * 0.004);
+  addSoftNoise(buffer, { duration: 0.066, volume: 0.18, smoothing: 0.87, releasePower: 4.2 });
+  addTone(buffer, { frequency, endFrequency, start: 0.004, duration: 0.067, volume: 0.48, attack: 0.0015, releasePower: 4, warmth: 0.34, wow: 0.004 });
+  return buffer;
+}
+
+function returnSound(variant) {
+  const profiles = [[108, 204], [114, 216], [102, 195]];
+  const [body, accent] = profiles[variant - 1];
+  const buffer = samples(0.15 + variant * 0.006);
+  addFeltTap(buffer, { pitch: body, volume: 0.62, duration: 0.1 });
+  addSoftNoise(buffer, { start: 0.018, duration: 0.105, volume: 0.15, smoothing: 0.93, releasePower: 3.1 });
+  addTone(buffer, { frequency: accent, endFrequency: accent * 0.9, start: 0.04, duration: 0.09, volume: 0.17, attack: 0.004, releasePower: 3.8, warmth: 0.2, wow: 0.006 });
   return buffer;
 }
 
 function navigationSound(variant) {
-  const buffer = samples(0.07);
-  addFeltTap(buffer, { pitch: 235 + variant * 24, volume: 0.38, duration: 0.058 });
+  const profiles = [[257, 0.058], [291, 0.064], [239, 0.06], [276, 0.068], [248, 0.063]];
+  const [pitch, duration] = profiles[variant - 1];
+  const buffer = samples(duration + 0.018);
+  addFeltTap(buffer, { pitch, volume: 0.38, duration });
   return buffer;
 }
 
 function selectionSound(variant) {
-  const buffer = samples(0.12);
-  addFeltTap(buffer, { pitch: 210 + variant * 35, volume: 0.5, duration: 0.085 });
-  addTone(buffer, { frequency: 390 + variant * 38, start: 0.013, duration: 0.09, volume: 0.18, attack: 0.004, releasePower: 3.3 });
+  const profiles = [[224, 408], [251, 449], [216, 427], [238, 463]];
+  const [body, accent] = profiles[variant - 1];
+  const buffer = samples(0.13 + variant * 0.004);
+  addFeltTap(buffer, { pitch: body, volume: 0.5, duration: 0.088 });
+  addTone(buffer, { frequency: accent, start: 0.014, duration: 0.098, volume: 0.18, attack: 0.004, releasePower: 3.3, wow: 0.004 });
   return buffer;
 }
 
 function confirmationSound(variant) {
-  const buffer = samples(0.28);
-  addFeltTap(buffer, { pitch: 190 + variant * 12, volume: 0.3, duration: 0.07 });
-  addChime(buffer, variant ? 440 : 392, 0.018, 0.21, 0.34);
-  addChime(buffer, variant ? 554.37 : 493.88, 0.075, 0.19, 0.27);
+  const profiles = [[392, 493.88], [440, 554.37], [415.3, 523.25], [369.99, 466.16]];
+  const [first, second] = profiles[variant - 1];
+  const buffer = samples(0.29 + variant * 0.006);
+  addFeltTap(buffer, { pitch: 188 + variant * 4, volume: 0.3, duration: 0.072 });
+  addChime(buffer, first, 0.018, 0.22, 0.34);
+  addChime(buffer, second, 0.078, 0.2, 0.27);
   return buffer;
 }
 
 function chatSendSound(variant) {
-  const buffer = samples(0.19);
-  addFeltTap(buffer, { pitch: 175 + variant * 11, volume: 0.42, duration: 0.072 });
-  addTone(buffer, { frequency: 330 + variant * 14, endFrequency: 465 + variant * 18, start: 0.018, duration: 0.145, volume: 0.27, attack: 0.006, releasePower: 3.1 });
+  const profiles = [[341, 474], [362, 506], [328, 458], [351, 492], [336, 481]];
+  const [start, end] = profiles[variant - 1];
+  const buffer = samples(0.19 + variant * 0.005);
+  addFeltTap(buffer, { pitch: 176 + (variant % 3) * 9, volume: 0.42, duration: 0.074 });
+  addTone(buffer, { frequency: start, endFrequency: end, start: 0.018, duration: 0.15, volume: 0.27, attack: 0.006, releasePower: 3.1, wow: 0.004, flutter: 0.001 });
   return buffer;
 }
 
 const sounds = [];
-for (let variant = 1; variant <= 8; variant++) sounds.push([`type_${String(variant).padStart(2, '0')}`, typingSound(variant), 0.16]);
-for (let variant = 1; variant <= 3; variant++) sounds.push([`navigate_${String(variant).padStart(2, '0')}`, navigationSound(variant), 0.14]);
-for (let variant = 1; variant <= 2; variant++) sounds.push([`select_${String(variant).padStart(2, '0')}`, selectionSound(variant), 0.2]);
-for (let variant = 1; variant <= 2; variant++) sounds.push([`confirm_${String(variant).padStart(2, '0')}`, confirmationSound(variant), 0.22]);
-for (let variant = 1; variant <= 3; variant++) sounds.push([`chat_send_${String(variant).padStart(2, '0')}`, chatSendSound(variant), 0.2]);
+for (let variant = 1; variant <= 12; variant++) sounds.push([`type_${String(variant).padStart(2, '0')}`, typingSound(variant), 0.16]);
+for (let variant = 1; variant <= 4; variant++) sounds.push([`type_space_${String(variant).padStart(2, '0')}`, spaceSound(variant), 0.15]);
+for (let variant = 1; variant <= 4; variant++) sounds.push([`type_backspace_${String(variant).padStart(2, '0')}`, backspaceSound(variant), 0.16]);
+for (let variant = 1; variant <= 3; variant++) sounds.push([`type_return_${String(variant).padStart(2, '0')}`, returnSound(variant), 0.18]);
+for (let variant = 1; variant <= 5; variant++) sounds.push([`navigate_${String(variant).padStart(2, '0')}`, navigationSound(variant), 0.14]);
+for (let variant = 1; variant <= 4; variant++) sounds.push([`select_${String(variant).padStart(2, '0')}`, selectionSound(variant), 0.2]);
+for (let variant = 1; variant <= 4; variant++) sounds.push([`confirm_${String(variant).padStart(2, '0')}`, confirmationSound(variant), 0.22]);
+for (let variant = 1; variant <= 5; variant++) sounds.push([`chat_send_${String(variant).padStart(2, '0')}`, chatSendSound(variant), 0.2]);
 
 {
   const buffer = samples(0.62);
