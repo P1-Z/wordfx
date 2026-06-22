@@ -109,7 +109,7 @@ function ensurePlayer() {
   }
 }
 
-async function warmSoundSystem(timeoutMs = 3000) {
+async function warmSoundSystem(timeoutMs = 5000) {
   if (!ensurePlayer()) return false;
   if (playerReady) return true;
   return new Promise(resolve => {
@@ -190,9 +190,25 @@ function playTypingSound(value) {
   return send('play', variantName(family, TYPING_VARIANTS[family]));
 }
 
+function shutdownSoundSystem() {
+  loopGeneration++;
+  activeLoops.clear();
+  lastCueAt.clear();
+  recentVariantIndexes.clear();
+  if (player) {
+    try { player.stdin?.end?.(); } catch {}
+    try { player.kill(); } catch {}
+  }
+  player = null;
+  playerReady = false;
+  readyPromise = null;
+  resolveReady = null;
+}
+
 module.exports = {
   playSound,
   playTypingSound,
+  shutdownSoundSystem,
   soundEnabled,
   startSoundLoop,
   stopSound,

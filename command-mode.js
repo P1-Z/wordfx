@@ -11,7 +11,7 @@ const packageManifest = require('./package.json');
 const { dataDirectory, dataPathWithLegacy, notesDirectory, setNotesDirectory } = require('./storage');
 const { registeredUsername, registerCredentials, credentialsMatch } = require('./credentials');
 const { ansi: paint, rgb: themeRgb, getTheme, setTheme, reloadTheme, themePalette, renderThemeBar, renderThemeRail, themeSpinner } = require('./theme');
-const { playSound, playTypingSound, warmSoundSystem } = require('./sound');
+const { playSound, playTypingSound, shutdownSoundSystem, warmSoundSystem } = require('./sound');
 
 let AUTH_USER = registeredUsername() || 'NEW USER';
 const COMMAND_SESSION = Math.floor(Math.random() * 0xffffff).toString(16).toUpperCase().padStart(6, '0');
@@ -150,6 +150,9 @@ async function playWindowTransition(label, playCue = true) {
     await wait(22);
   }
   await wait(35);
+  // Shut down the sound player before the child process boots. The child
+  // will create its own player; running two at once causes audio stacking.
+  shutdownSoundSystem();
   process.stdout.write('\x1b[3J\x1b[2J\x1b[H');
 }
 
@@ -1716,7 +1719,10 @@ async function runEnhancedConsole() {
         await renderCommandHeader(chromeFrame);
         terminal.line = '';
         terminal.cursor = 0;
-        if (code !== 0) throw new Error('Update did not complete.');
+        if (code !== 0) {
+          const reasons = { 2: 'No internet connection.', 3: 'GitHub rate limit reached. Try again shortly.', 4: 'No release found on GitHub.' };
+          throw new Error(reasons[code] || 'Update did not complete. Check the log above for details.');
+        }
       } finally {
         commandFullscreenEffect = false;
       }

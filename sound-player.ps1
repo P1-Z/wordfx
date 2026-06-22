@@ -104,9 +104,9 @@ function Clear-ActiveCue([string]$Name) {
 
 # MediaPlayer opens asynchronously. Signal readiness only after every WAV has
 # a resolved duration, so the first event cannot be lost during initialization.
-# Deadline raised to 3000ms so large files (e.g. note_dissolve.wav) have time
-# to finish opening on slower machines.
-$readyDeadline = [DateTime]::UtcNow.AddMilliseconds(3000)
+# Deadline raised to 5000ms so the full 54-file sound bank has time to finish
+# opening on slower machines.
+$readyDeadline = [DateTime]::UtcNow.AddMilliseconds(5000)
 do {
   $allReady = $true
   foreach ($mediaPlayer in $players.Values) {

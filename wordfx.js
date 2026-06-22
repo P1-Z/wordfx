@@ -5,7 +5,7 @@
 const { spawn } = require('node:child_process');
 const path = require('node:path');
 const { ansi: colors, rgb: themeRgb, getTheme, getSkin, setTheme, reloadTheme, themePalette, renderThemeBar, renderThemeRail, themeSpinner } = require('./theme');
-const { playSound, playTypingSound, warmSoundSystem } = require('./sound');
+const { playSound, playTypingSound, shutdownSoundSystem, warmSoundSystem } = require('./sound');
 
 if (!process.stdin.isTTY || !process.stdout.isTTY) {
   console.error(':// needs to run in an interactive terminal.');
@@ -713,6 +713,10 @@ function runEnteredCommand() {
 
 function playLoadingCue() {
   playSound('opening or loading');
+  // Shut down the parent sound player before spawning a child process.
+  // Each child creates its own PowerShell sound player -- without this,
+  // two independent audio systems run simultaneously and sounds stack.
+  shutdownSoundSystem();
 }
 
 function launchMediaControlProcess() {
@@ -868,8 +872,12 @@ function launchUpdateProcess() {
     process.stdin.setRawMode(true);
     process.stdin.resume();
     process.stdin.on('data', handleKey);
-    status = code === 0 ? ':// is already up to date.' : 'Update did not complete.';
-    statusUntil = Date.now() + 2500;
+    if (code === 0) status = ':// is already up to date.';
+    else if (code === 2) status = 'Update failed: no internet connection.';
+    else if (code === 3) status = 'Update failed: GitHub rate limit. Try again shortly.';
+    else if (code === 4) status = 'Update failed: no release found on GitHub.';
+    else status = 'Update did not complete. Check the log above for details.';
+    statusUntil = Date.now() + 3500;
     process.stdout.write('\x1b[3J\x1b[2J\x1b[H');
     render();
   });

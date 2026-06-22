@@ -13,6 +13,9 @@ const DEFAULT_REPOSITORY = 'P1-Z/wordfx';
 const ARCHIVE_NAME = 'slashslash-windows.zip';
 const CHECKSUM_NAME = `${ARCHIVE_NAME}.sha256`;
 const UPDATE_EXIT_CODE = 42;
+const EXIT_NETWORK = 2;
+const EXIT_RATE_LIMITED = 3;
+const EXIT_NO_RELEASE = 4;
 const REQUIRED_FILES = ['package.json', 'wordfx.js', 'command-mode.js', 'updater.js', 'launch-wordfx.cmd'];
 const PROTECTED_ROOTS = new Set([
   '.git',
@@ -82,6 +85,19 @@ async function fetchChecked(url, type = 'buffer') {
     },
     redirect: 'follow',
   });
+  if (response.status === 403) {
+    const remaining = response.headers.get('x-ratelimit-remaining');
+    if (remaining === '0') {
+      const error = new Error('GitHub API rate limit reached. Try again in a few minutes.');
+      error.exitCode = EXIT_RATE_LIMITED;
+      throw error;
+    }
+  }
+  if (response.status === 404) {
+    const error = new Error('No releases found on GitHub.');
+    error.exitCode = EXIT_NO_RELEASE;
+    throw error;
+  }
   if (!response.ok) throw new Error(`Update server returned HTTP ${response.status}.`);
   if (type === 'json') return response.json();
   return Buffer.from(await response.arrayBuffer());
@@ -213,12 +229,20 @@ if (require.main === module) {
       process.exitCode = updated ? UPDATE_EXIT_CODE : 0;
     })
     .catch(error => {
-      console.error(`Update failed: ${error.message}`);
-      process.exitCode = 1;
+      if (error?.code === 'UND_ERR_CONNECT_TIMEOUT' || error?.cause?.code === 'ENOTFOUND' || error?.cause?.code === 'ECONNREFUSED') {
+        console.error('Update failed: Could not reach GitHub. Check your internet connection.');
+        process.exitCode = EXIT_NETWORK;
+      } else {
+        console.error(`Update failed: ${error.message}`);
+        process.exitCode = error.exitCode || 1;
+      }
     });
 }
 
 module.exports = {
+  EXIT_NETWORK,
+  EXIT_NO_RELEASE,
+  EXIT_RATE_LIMITED,
   UPDATE_EXIT_CODE,
   applyUpdate,
   checksumFromFile,
