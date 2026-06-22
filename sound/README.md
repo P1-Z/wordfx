@@ -8,8 +8,11 @@ regenerated deterministically with:
 node tools/generate-soft-sounds.js
 ```
 
-The bank is intentionally quiet and short: felt taps, warm sine chimes,
-filtered noise, smooth tape texture, rising bubble gestures, and small pitch
-gestures. Typing, Space, Backspace, Return, navigation, selection, confirmation,
-and send cues each have randomized variants with recent-repeat avoidance. File
-amplitude is limited at generation time so rapid interactions remain soft.
+The bank has a tactile, lo-fi character: snappy felt taps with sub-bass weight,
+warm saturated chimes, gritty filtered noise, cassette tape texture with dust
+and hiss, rising bubble gestures, and subtle wow/flutter pitch drift. Every
+sound passes through a one-pole low-pass filter and soft tanh saturation for
+analog warmth. Typing, Space, Backspace, Return, navigation, selection,
+confirmation, and send cues each have randomized variants with recent-repeat
+avoidance. File amplitude is limited at generation time so rapid interactions
+remain soft.
