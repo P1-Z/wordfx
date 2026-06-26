@@ -9,7 +9,7 @@ const { noteFilePath } = require('./storage');
 const { playSound, warmSoundSystem } = require('./sound');
 
 if (!process.stdin.isTTY || !process.stdout.isTTY) process.exit(1);
-void warmSoundSystem();
+void warmSoundSystem(0);
 
 const notesFile = noteFilePath('notes.txt', path.join(__dirname, 'notes', 'wordfx-notes.txt'));
 const at = (row, column, text) => `\x1b[${row};${column}H${text}`;

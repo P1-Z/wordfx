@@ -13,7 +13,7 @@ if (!process.stdin.isTTY || !process.stdout.isTTY) {
   console.error('Media player needs an interactive terminal.');
   process.exit(1);
 }
-void warmSoundSystem();
+void warmSoundSystem(0);
 
 const keyBackendScript = String.raw`
 Add-Type @'

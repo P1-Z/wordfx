@@ -33,6 +33,8 @@ Typing `phantom` as a complete word censors it and displays a large glitching fa
 
 Typing `cmd` and pressing Enter starts a separate, authenticated command-mode process. Use `exit` to return to the :// canvas.
 
+Direct canvas shortcuts that open private or higher-impact tools, including `cmd.note`, `cmd.fix`, `cmd.player`, and `cmd.update`, ask for the same login before they open.
+
 Typing `cmd.brb` on the canvas and pressing Enter opens a skin-specific break screen. Each skin has its own message and animated motif; press Space to clear the terminal scrollback and return directly to the canvas.
 
 Typing `cmd.note` on the canvas and pressing Enter, or entering `note` in command mode, opens a clean single-sentence note editor. Enter dissolves and appends the note with its local date, time, and UTC offset to `data/notes/notes.txt` beside the app.
@@ -53,11 +55,9 @@ Typing `cmd.player` opens the full-screen skinned media player; it is also avail
 
 Typing `chat` in command mode opens a private two-person messenger in a separate terminal window, leaving the command console available. The host uses `chat host`, names the room, and sets the join code inside WordFX. The guest uses `chat join`, picks from the built-in live room list, and types the host's code. The full-screen chat keeps the current room's messages in a scrollable, memory-only history. It follows new messages while you are at the bottom; when you scroll up with the wheel, arrows, or Page Up/Page Down, a `↓ NEW` marker counts messages until you return to the bottom or start typing. Press `Ctrl+R` to enter or cancel reply selection, use Up/Down to choose a message, then press Enter to confirm. A live typing indicator appears whenever the other person is composing, messages send immediately without locking the composer, and the relay closes the room after neither participant has typed for two minutes. The room accepts one host and one guest, authenticates both ends with the code, end-to-end encrypts message payloads with AES-256-GCM, relays frames only in memory, and does not save them. Press Escape or use `/quit` to leave. Both computers need internet access and Node.js 22 or newer; Tailscale, router port forwarding, and inbound firewall rules are not required.
 
+Typing `cmd.guild` on the canvas, or `guild` in command mode, opens shared guilds. Guilds are public relay-backed server spaces with a logo, a left-side user list, a right-side post board, online/idle/brb/offline presence, and direct messages between members. Press `N` from the guild list to create one, Enter to join, Tab or Up/Down on the board to focus users, Enter on a selected user to DM, and `Ctrl+B` to toggle brb. Idle is based on inactivity while the guild screen is open.
+
 Typing `update` in command mode checks the public GitHub Releases feed, verifies the downloaded ZIP with SHA-256, installs only release-managed files, and restarts `://`. Personal credentials, notes, linked apps, linked directories, and skin preferences are preserved. The same updater is available directly from the canvas with `cmd.update`.
-
-Typing `cmd.sally` or `cmd.selina` on the canvas and pressing Enter opens an animated anniversary counter dating from November 12, 2023, including the approximate straight-line distance between Marburg and Rosh Ha'Ayin. The same screen is available through `sally` or `selina` inside command mode.
-
-Plain `sally` and `selina`, alone or inside a longer sentence, pulse pink and dissolve into pink heart-and-sparkle particles when Enter is pressed.
 
 Typing `cmd.fix` on the canvas and pressing Enter, or entering `fix` in command mode, opens an issue editor. Enter appends the issue with a timestamp to the persistent `data/notes/fix.txt` archive for a later session.
 
@@ -75,6 +75,7 @@ Command mode is an authenticated launcher and Windows command console. It includ
 - `status`, `about`, `time`, and `echo`
 - `monitor` opens a live CPU and memory dashboard; Q, Escape, or Enter returns
 - `chat`, `chat host`, and `chat join` open the private Cloudflare messenger in a separate window
+- `guild` opens shared guild boards, member presence, and direct messages
 - `update` installs the latest verified GitHub release and restarts `://`
 - Directory navigation with `pwd`, `cd`, `ls`, and `dir`
 - `exec` opens a clean Windows command terminal in a new window

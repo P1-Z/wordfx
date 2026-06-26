@@ -22,14 +22,27 @@ const {
 function deferred(timeoutMessage) {
   let resolve;
   let reject;
+  let settled = false;
   const promise = new Promise((resolve_, reject_) => {
-    resolve = resolve_;
-    reject = reject_;
+    resolve = value => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      resolve_(value);
+    };
+    reject = error => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      reject_(error);
+    };
   });
   const timer = setTimeout(() => reject(new Error(timeoutMessage)), 5000);
   return {
-    promise: promise.finally(() => clearTimeout(timer)),
+    promise,
     resolve,
+    reject,
+    cancel: () => resolve(undefined),
   };
 }
 
@@ -118,37 +131,44 @@ async function main() {
   const roomId = generateRoomId();
   const accessCode = generateAccessCode();
   const guestAuthenticated = deferred('Host did not authenticate the guest.');
+  let host;
+  let guest;
   let hostReceived;
   let guestReceived;
 
-  const host = await startHost({
-    roomId,
-    accessCode,
-    roomLabel: 'Integration',
-    username: 'HOST',
-    onEvent: event => {
-      if (event.type === 'connected') guestAuthenticated.resolve(event.username);
-    },
-    onMessage: message => hostReceived?.resolve(message),
-  });
+  try {
+    host = await startHost({
+      roomId,
+      accessCode,
+      roomLabel: 'Integration',
+      username: 'HOST',
+      onEvent: event => {
+        if (event.type === 'connected') guestAuthenticated.resolve(event.username);
+      },
+      onMessage: message => hostReceived?.resolve(message),
+    });
 
-  const guest = await connectToHost({
-    roomId,
-    accessCode,
-    username: 'GUEST',
-    onMessage: message => guestReceived?.resolve(message),
-  });
+    guest = await connectToHost({
+      roomId,
+      accessCode,
+      username: 'GUEST',
+      onMessage: message => guestReceived?.resolve(message),
+    });
 
-  assert.equal(await guestAuthenticated.promise, 'GUEST');
-  hostReceived = deferred('Host did not receive the guest message.');
-  guestReceived = deferred('Guest did not receive the host message.');
-  assert.equal(guest.sendMessage({ id: 'guest-1', text: 'hello host' }), true);
-  assert.deepEqual(await hostReceived.promise, { username: 'GUEST', id: 'guest-1', text: 'hello host', replyTo: undefined });
-  assert.equal(host.sendMessage({ id: 'host-1', text: 'hello guest' }), true);
-  assert.deepEqual(await guestReceived.promise, { username: 'HOST', id: 'host-1', text: 'hello guest', replyTo: undefined });
-
-  guest.destroy();
-  host.shutdown();
+    assert.equal(await guestAuthenticated.promise, 'GUEST');
+    hostReceived = deferred('Host did not receive the guest message.');
+    guestReceived = deferred('Guest did not receive the host message.');
+    assert.equal(guest.sendMessage({ id: 'guest-1', text: 'hello host' }), true);
+    assert.deepEqual(await hostReceived.promise, { username: 'GUEST', id: 'guest-1', text: 'hello host', replyTo: undefined });
+    assert.equal(host.sendMessage({ id: 'host-1', text: 'hello guest' }), true);
+    assert.deepEqual(await guestReceived.promise, { username: 'HOST', id: 'host-1', text: 'hello guest', replyTo: undefined });
+  } finally {
+    guestAuthenticated.cancel();
+    hostReceived?.cancel();
+    guestReceived?.cancel();
+    guest?.destroy();
+    host?.shutdown();
+  }
   console.log('Cloudflare relay integration passed.');
 }
 

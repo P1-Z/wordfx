@@ -22,8 +22,26 @@ let commandOwnsAlternateScreen = false;
 let commandActivity = 'AWAITING INPUT';
 let commandFullscreenEffect = false;
 
+const HIDDEN_COMMANDS = new Set(['selina', 'sally']);
+const DIRECT_LAUNCH_ALIASES = new Map([
+  ['note', 'note'],
+  ['fix', 'fix'],
+  ['guild', 'guild'],
+  ['player', 'player'],
+  ['mediaplayer', 'player'],
+  ['mediactrl', 'player'],
+  ['update', 'update'],
+]);
+
 const registryPath = dataPathWithLegacy('linked-apps.json', path.join(__dirname, 'linked-apps.json'));
 const directoryRegistryPath = dataPathWithLegacy('linked-directories.json', path.join(__dirname, 'linked-directories.json'));
+
+function directLaunchRequest() {
+  const index = process.argv.indexOf('--launch');
+  if (index === -1) return null;
+  const requested = String(process.argv[index + 1] || '').toLowerCase();
+  return DIRECT_LAUNCH_ALIASES.get(requested) || '__invalid__';
+}
 
 function displayPath(value) {
   return String(value).replace(/(^|[\\/])wordfx(?=([\\/]|$))/gi, '$1://');
@@ -128,7 +146,7 @@ function openTerminal(executable, args = [], options = {}) {
 }
 
 async function playWindowTransition(label, playCue = true) {
-  await warmSoundSystem();
+  void warmSoundSystem(0);
   if (playCue) playSound('opening or loading');
   const { width, height } = effectScreenSize();
   const middle = Math.max(2, Math.floor(height / 2));
@@ -345,7 +363,7 @@ async function runSystemMonitorMode() {
 }
 
 async function runLoveMode() {
-  await playWindowTransition('OPENING SALLY + ERIK');
+  await playWindowTransition('OPENING EASTER EGG');
   const code = await new Promise((resolve, reject) => {
     const child = spawn(process.execPath, [path.join(__dirname, 'love-mode.js')], {
       cwd: __dirname,
@@ -370,6 +388,26 @@ async function runMediaControlMode() {
       cwd: __dirname,
       stdio: 'inherit',
       windowsHide: false,
+    });
+    child.once('error', reject);
+    child.once('exit', exitCode => {
+      process.stdin.setRawMode(true);
+      process.stdin.resume();
+      resolve(exitCode ?? 1);
+    });
+  });
+  await playReturnTransition();
+  return code;
+}
+
+async function runGuildMode() {
+  await playWindowTransition('OPENING GUILDS');
+  const code = await new Promise((resolve, reject) => {
+    const child = spawn(process.execPath, [path.join(__dirname, 'guild-mode.js')], {
+      cwd: __dirname,
+      stdio: 'inherit',
+      windowsHide: false,
+      env: { ...process.env, WORDFX_CHAT_USERNAME: AUTH_USER },
     });
     child.once('error', reject);
     child.once('exit', exitCode => {
@@ -408,6 +446,15 @@ async function runUpdaterMode() {
   });
   if (code !== 42) await playReturnTransition();
   return code;
+}
+
+async function runAuthenticatedDirectLaunch(name) {
+  if (name === 'note') return runNoteMode();
+  if (name === 'fix') return runFixMode();
+  if (name === 'guild') return runGuildMode();
+  if (name === 'player') return runMediaControlMode();
+  if (name === 'update') return runUpdaterMode();
+  throw new Error('Unknown protected command.');
 }
 
 function formatBytes(bytes) {
@@ -1475,8 +1522,8 @@ async function runEnhancedConsole() {
     ['open', '<file>', 'Open a file or folder'],
     ['status', '', 'Show system and session information'],
     ['monitor', '', 'Open the live system monitor'],
-    ['selina', '', 'Open the Sally + Erik animation (alias: sally)'],
     ['player', '', 'Open the skinned system media player'],
+    ['guild', '', 'Open shared guild boards and DMs'],
     ['chat', '[host|join]', 'Open messenger in a separate window'],
     ['update', '', 'Install the latest GitHub release'],
     ['pwd', '', 'Print the working directory'],
@@ -1500,12 +1547,12 @@ async function runEnhancedConsole() {
 
   function printHelp() {
     const inside = terminalWidth() - 4;
-    const entriesFor = names => names.map(name => helpEntries.find(entry => entry[0] === name));
+    const entriesFor = names => names.map(name => helpEntries.find(entry => entry[0] === name)).filter(Boolean);
     const groups = [
       ['APP CONTROL', entriesFor(['apps', 'link', 'run', 'unlink'])],
       ['FILE BROWSER', entriesFor(['cdlink', 'cd', 'ls', 'open', 'pwd'])],
       ['WORKSPACE', entriesFor(['status', 'monitor', 'exec', 'wsl', 'update', 'echo', 'time', 'clear'])],
-      ['SESSION', entriesFor(['help', 'brb', 'note', 'nd', 'word', 'skin', 'theme', 'fix', 'nh', 'guide', 'selina', 'player', 'chat', 'about', 'exit'])],
+      ['SESSION', entriesFor(['help', 'brb', 'note', 'nd', 'word', 'skin', 'theme', 'fix', 'nh', 'guide', 'player', 'guild', 'chat', 'about', 'exit'])],
     ];
     console.log(`\n${paint.purple}╭${'─'.repeat(inside)}╮${paint.reset}`);
     console.log(panelRow(`${paint.bold}${paint.white}COMMAND INDEX${paint.reset}  ${paint.dim}// ${helpEntries.length} operations online${paint.reset}`, inside, paint.purple));
@@ -1671,7 +1718,7 @@ async function runEnhancedConsole() {
         await renderCommandHeader(chromeFrame);
         terminal.line = '';
         terminal.cursor = 0;
-        if (code !== 0) throw new Error('Love animation closed unexpectedly.');
+        if (code !== 0) throw new Error('Easter egg closed unexpectedly.');
       } finally {
         commandFullscreenEffect = false;
       }
@@ -1693,6 +1740,20 @@ async function runEnhancedConsole() {
     },
     mediaplayer: async args => commands.player(args),
     mediactrl: async args => commands.player(args),
+    guild: async args => {
+      if (args.length) throw new Error('Usage: guild');
+      commandFullscreenEffect = true;
+      try {
+        const code = await runGuildMode();
+        chromeSnapshot = commandHeaderSnapshot();
+        await renderCommandHeader(chromeFrame);
+        terminal.line = '';
+        terminal.cursor = 0;
+        if (code !== 0) throw new Error('Guilds closed unexpectedly.');
+      } finally {
+        commandFullscreenEffect = false;
+      }
+    },
     chat: async args => {
       if (args.length > 1) throw new Error('Usage: chat [host|join]');
       if (args.length && !['host', 'join'].includes(args[0].toLowerCase())) {
@@ -1920,7 +1981,7 @@ async function runEnhancedConsole() {
 
   function complete(line) {
     const tokens = line.trimStart().split(/\s+/);
-    let candidates = Object.keys(commands);
+    let candidates = Object.keys(commands).filter(command => !HIDDEN_COMMANDS.has(command));
     if (tokens.length > 1 && tokens[0].toLowerCase() === 'run') candidates = Object.keys(loadApps());
     else if (tokens.length > 1 && ['cd', 'ls', 'dir', 'open'].includes(tokens[0].toLowerCase())) {
       let entries = [];
@@ -1994,11 +2055,22 @@ async function runEnhancedConsole() {
 }
 
 async function startCommandMode() {
-  await warmSoundSystem();
+  void warmSoundSystem(0);
   enterCommandScreen();
   if (!(await authenticate())) {
     await animatedReply('COMMAND PROCESS TERMINATED', paint.red);
     process.exit(1);
+  }
+
+  const directLaunch = directLaunchRequest();
+  if (directLaunch) {
+    if (directLaunch === '__invalid__') {
+      await animatedReply('UNKNOWN PROTECTED COMMAND', paint.red);
+      process.exit(1);
+    }
+    const code = await runAuthenticatedDirectLaunch(directLaunch);
+    if (code === 42) process.exit(42);
+    process.exit(code === 0 ? 0 : 1);
   }
 
   await playCommandInterfaceReveal();

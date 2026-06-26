@@ -6,7 +6,7 @@ const { ansi: colors, themes, getTheme, setTheme, renderThemeBar } = require('./
 const { playSound, warmSoundSystem } = require('./sound');
 
 if (!process.stdin.isTTY || !process.stdout.isTTY) process.exit(1);
-void warmSoundSystem();
+void warmSoundSystem(0);
 
 const names = Object.keys(themes);
 let selected = Math.max(0, names.indexOf(getTheme()));

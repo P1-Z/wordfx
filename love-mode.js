@@ -19,7 +19,7 @@ if (!process.stdin.isTTY || !process.stdout.isTTY) {
   console.error('The love animation needs an interactive terminal.');
   process.exit(1);
 }
-void warmSoundSystem();
+void warmSoundSystem(0);
 
 function relationshipAge(now = new Date()) {
   const start = new Date(2023, 10, 12);

@@ -9,9 +9,10 @@
     "node": ">=22"
   },
   "scripts": {
-    "check": "node --check sound.js && node --check storage.js && node --check credentials.js && node --check theme.js && node --check theme-mode.js && node --check wordfx.js && node --check command-mode.js && node --check messenger-mode.js && node --check updater.js && node --check worker/index.js && node --check note-mode.js && node --check word-mode.js && node --check note-history-mode.js && node --check list-mode.js && node --check guide-mode.js && node --check help-mode.js && node --check system-monitor-mode.js && node --check love-mode.js && node --check media-control-mode.js && node --check tools/generate-soft-sounds.js && node --check tools/preview-soft-sounds.js",
+    "check": "node --check sound.js && node --check storage.js && node --check credentials.js && node --check theme.js && node --check theme-mode.js && node --check wordfx.js && node --check command-mode.js && node --check messenger-mode.js && node --check guild-mode.js && node --check updater.js && node --check worker/index.js && node --check note-mode.js && node --check word-mode.js && node --check note-history-mode.js && node --check list-mode.js && node --check guide-mode.js && node --check help-mode.js && node --check system-monitor-mode.js && node --check love-mode.js && node --check media-control-mode.js && node --check tools/generate-soft-sounds.js && node --check tools/preview-soft-sounds.js",
     "test:updater": "node --test test/updater.test.js",
     "test:sounds": "node --test test/sound-library.test.js",
+    "test:guilds": "node test/guild-mode.test.js",
     "sounds:generate": "node tools/generate-soft-sounds.js",
     "sounds:preview": "node tools/preview-soft-sounds.js",
     "test:relay": "node test/messenger-integration.js",

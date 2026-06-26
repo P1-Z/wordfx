@@ -9,7 +9,7 @@ if (!process.stdin.isTTY || !process.stdout.isTTY) {
   console.error('System monitor needs an interactive terminal.');
   process.exit(1);
 }
-void warmSoundSystem();
+void warmSoundSystem(0);
 
 const cyan = '\x1b[36m';
 const green = '\x1b[32m';

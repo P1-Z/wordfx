@@ -653,7 +653,7 @@ function renderChatStartupFrame(frame, frameCount = 30) {
 
 async function playChatStartupAnimation() {
   const frames = 30;
-  await warmSoundSystem();
+  void warmSoundSystem(0);
   if (process.env.WORDFX_SKIP_STARTUP_SOUND !== '1') playSound('opening or loading');
   process.stdout.write('\x1b[r\x1b[3J\x1b[2J\x1b[H\x1b[?25l');
   for (let frame = 0; frame <= frames; frame++) {

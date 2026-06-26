@@ -80,7 +80,7 @@ function openTarget(targetPath) {
 }
 
 async function playOpenAnimation(targetPath) {
-  await warmSoundSystem();
+  void warmSoundSystem(0);
   playSound('opening or loading');
   const name = path.basename(targetPath) || targetPath;
   const frames = 20;
@@ -179,7 +179,7 @@ function render(entries, selected, offset, query) {
 }
 
 function main() {
-  void warmSoundSystem();
+  void warmSoundSystem(0);
   let entries = loadEntries();
   let filteredEntries = entries;
   let query = '';

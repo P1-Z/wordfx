@@ -12,7 +12,7 @@ if (!process.stdin.isTTY || !process.stdout.isTTY) {
   console.error('The animation guide needs an interactive terminal.');
   process.exit(1);
 }
-void warmSoundSystem();
+void warmSoundSystem(0);
 
 function visibleLength(text) {
   return text.replace(/\x1b\[[0-9;?]*[ -/]*[@-~]/g, '').length;

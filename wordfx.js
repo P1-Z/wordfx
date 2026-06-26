@@ -13,7 +13,7 @@ if (!process.stdin.isTTY || !process.stdout.isTTY) {
 }
 
 const ESC = '\x1b[';
-const FRAME_INTERVAL = 16; // 60 FPS for smoother animations
+const FRAME_INTERVAL = 33; // Keep terminal repaint work closer to 30 FPS.
 const cells = [];
 let lastFrameTime = Date.now(); // For delta time calculations
 let cursor = 0;
@@ -28,6 +28,7 @@ let showHelp = true;
 let status = 'Type anywhere. Hold Shift + arrows to mark text.';
 let statusUntil = Date.now() + 5000;
 let timer = null;
+let transientUiVisible = true;
 
 const effects = {
   rainbow: { label: 'rainbow' },
@@ -38,6 +39,35 @@ const effects = {
   underline: { label: 'underline' },
   none: { label: 'plain' },
 };
+
+const ANIMATED_EFFECTS = new Set(['rainbow', 'matrix', 'pulse', 'sparkle', 'love']);
+
+const CANVAS_COMMANDS = new Set([
+  'cmd',
+  'cmd.brb',
+  'cmd.note',
+  'cmd.fix',
+  'cmd.guide',
+  'cmd.word',
+  'cmd.theme',
+  'cmd.skin',
+  'cmd.sally',
+  'cmd.selina',
+  'cmd.player',
+  'cmd.mediaplayer',
+  'cmd.mediactrl',
+  'cmd.guild',
+  'cmd.update',
+]);
+
+const PROTECTED_CANVAS_COMMANDS = new Map([
+  ['cmd.note', ['note', 'Note']],
+  ['cmd.fix', ['fix', 'Fix']],
+  ['cmd.player', ['player', 'Media player']],
+  ['cmd.mediaplayer', ['player', 'Media player']],
+  ['cmd.mediactrl', ['player', 'Media player']],
+  ['cmd.update', ['update', 'Updater']],
+]);
 
 function size() {
   return {
@@ -629,6 +659,17 @@ function render() {
   process.stdout.write(out);
 }
 
+function hasAnimatedCells() {
+  return cells.some(cell => cell.censored || ANIMATED_EFFECTS.has(cell.effect));
+}
+
+function shouldRenderAnimationFrame(now = Date.now()) {
+  const transientVisible = Boolean(clearAnimation) || now < statusUntil || now < forbiddenEntryUntil;
+  const shouldRender = transientVisible || transientUiVisible || hasAnimatedCells();
+  transientUiVisible = transientVisible;
+  return shouldRender;
+}
+
 function insert(text) {
   const range = selectedRange();
   if (range) {
@@ -693,17 +734,17 @@ function insertWithAutoPair(key) {
 
 function runEnteredCommand() {
   const command = cells.map(cell => cell.ch).join('').trim().toLowerCase();
-  if (!['cmd', 'cmd.brb', 'cmd.note', 'cmd.fix', 'cmd.guide', 'cmd.word', 'cmd.theme', 'cmd.skin', 'cmd.sally', 'cmd.selina', 'cmd.player', 'cmd.mediaplayer', 'cmd.mediactrl', 'cmd.update'].includes(command)) return false;
+  if (!CANVAS_COMMANDS.has(command)) return false;
 
   cells.splice(0, cells.length);
   cursor = 0;
   anchor = null;
 
-  if (command === 'cmd.sally' || command === 'cmd.selina') launchLoveProcess();
-  else if (command === 'cmd.player' || command === 'cmd.mediaplayer' || command === 'cmd.mediactrl') launchMediaControlProcess();
-  else if (command === 'cmd.update') launchUpdateProcess();
-  else if (command === 'cmd.note') launchNoteProcess();
-  else if (command === 'cmd.fix') launchNoteProcess(true);
+  if (PROTECTED_CANVAS_COMMANDS.has(command)) {
+    const [target, label] = PROTECTED_CANVAS_COMMANDS.get(command);
+    launchAuthenticatedCommandProcess(target, label);
+  } else if (command === 'cmd.sally' || command === 'cmd.selina') launchLoveProcess();
+  else if (command === 'cmd.guild') launchGuildProcess();
   else if (command === 'cmd.guide') launchGuideProcess();
   else if (command === 'cmd.word') launchWordProcess();
   else if (command === 'cmd.theme' || command === 'cmd.skin') launchThemeProcess();
@@ -720,104 +761,127 @@ function playLoadingCue() {
   timer.unref?.();
 }
 
-function launchMediaControlProcess() {
-  playLoadingCue();
+function suspendCanvasForChild() {
   commandProcessActive = true;
   process.stdin.off('data', handleKey);
-  process.stdin.setRawMode(false);
+  try {
+    if (process.stdin.isRaw) process.stdin.setRawMode(false);
+  } catch {}
   process.stdin.pause();
   process.stdout.write('\x1b[?25h\x1b[0m\x1b[3J\x1b[2J\x1b[H');
+}
 
-  const child = spawn(process.execPath, [path.join(__dirname, 'media-control-mode.js')], {
+function restoreCanvasAfterChild() {
+  commandProcessActive = false;
+  process.stdin.off('data', handleKey);
+  process.stdin.setRawMode(true);
+  process.stdin.resume();
+  process.stdin.on('data', handleKey);
+  process.stdout.write('\x1b[3J\x1b[2J\x1b[H');
+  render();
+}
+
+function launchNodeScreen({ script, args = [], stdio = 'inherit', env = process.env, onMessage, onExit }) {
+  playLoadingCue();
+  suspendCanvasForChild();
+  const scriptPath = path.isAbsolute(script) ? script : path.join(__dirname, script);
+
+  const child = spawn(process.execPath, [scriptPath, ...args], {
     cwd: __dirname,
-    stdio: 'inherit',
+    stdio,
+    env,
   });
 
-  child.on('error', error => {
-    playSound('error');
-    status = `Media player failed: ${error.message}`;
-    statusUntil = Date.now() + 3000;
-  });
+  if (onMessage) child.on('message', onMessage);
 
-  child.on('exit', code => {
-    commandProcessActive = false;
-    process.stdin.setRawMode(true);
-    process.stdin.resume();
-    process.stdin.on('data', handleKey);
-    status = code === 0 ? 'Media player closed.' : 'Media player closed unexpectedly.';
-    statusUntil = Date.now() + 1800;
-    process.stdout.write('\x1b[3J\x1b[2J\x1b[H');
-    render();
+  let settled = false;
+  const finish = (code, error = null) => {
+    if (settled) return;
+    settled = true;
+    if (error) {
+      playSound('error');
+      status = error.message;
+      statusUntil = Date.now() + 3000;
+    } else {
+      const result = onExit?.(code ?? 1) || {};
+      if (result.restart) return;
+      if (result.status) {
+        status = result.status;
+        statusUntil = Date.now() + (result.duration || 1800);
+      }
+    }
+    restoreCanvasAfterChild();
+  };
+
+  child.once('error', error => finish(1, error));
+  child.once('exit', code => finish(code ?? 1));
+}
+
+function launchAuthenticatedCommandProcess(target, label) {
+  launchNodeScreen({
+    script: 'command-mode.js',
+    args: ['--launch', target],
+    env: { ...process.env, WORDFX_PARENT_ALT: '1', WORDFX_SKIP_STARTUP_SOUND: '1' },
+    onExit: code => {
+      if (code === 42) {
+        restartApplication();
+        return { restart: true };
+      }
+      return {
+        status: code === 0 ? `${label} closed.` : `${label} was not opened.`,
+        duration: 2200,
+      };
+    },
+  });
+}
+
+function launchMediaControlProcess() {
+  launchNodeScreen({
+    script: 'media-control-mode.js',
+    onExit: code => ({
+      status: code === 0 ? 'Media player closed.' : 'Media player closed unexpectedly.',
+    }),
   });
 }
 
 function launchLoveProcess() {
-  playLoadingCue();
-  commandProcessActive = true;
-  process.stdin.off('data', handleKey);
-  process.stdin.setRawMode(false);
-  process.stdin.pause();
-  process.stdout.write('\x1b[?25h\x1b[0m\x1b[3J\x1b[2J\x1b[H');
-
-  const child = spawn(process.execPath, [path.join(__dirname, 'love-mode.js')], {
-    cwd: __dirname,
-    stdio: 'inherit',
+  launchNodeScreen({
+    script: 'love-mode.js',
+    onExit: code => ({
+      status: code === 0 ? 'Easter egg closed.' : 'Easter egg closed unexpectedly.',
+    }),
   });
+}
 
-  child.on('error', error => {
-    playSound('error');
-    status = `Love animation failed: ${error.message}`;
-    statusUntil = Date.now() + 3000;
-  });
-
-  child.on('exit', code => {
-    commandProcessActive = false;
-    process.stdin.setRawMode(true);
-    process.stdin.resume();
-    process.stdin.on('data', handleKey);
-    status = code === 0 ? 'I love you.' : 'Love animation closed unexpectedly.';
-    statusUntil = Date.now() + 1800;
-    process.stdout.write('\x1b[3J\x1b[2J\x1b[H');
-    render();
+function launchGuildProcess() {
+  launchNodeScreen({
+    script: 'guild-mode.js',
+    onExit: code => ({
+      status: code === 0 ? 'Guilds closed.' : 'Guilds closed unexpectedly.',
+    }),
   });
 }
 
 function launchThemeProcess() {
-  playLoadingCue();
-  commandProcessActive = true;
-  process.stdin.off('data', handleKey);
-  process.stdin.setRawMode(false);
-  process.stdin.pause();
-  process.stdout.write('\x1b[?25h\x1b[0m\x1b[3J\x1b[2J\x1b[H');
-
   let selectedTheme = null;
-  const child = spawn(process.execPath, [path.join(__dirname, 'theme-mode.js')], {
-    cwd: __dirname,
+
+  launchNodeScreen({
+    script: 'theme-mode.js',
     stdio: ['inherit', 'inherit', 'inherit', 'ipc'],
-  });
-
-  child.on('message', message => {
-    if (message?.type === 'theme-selected' && typeof message.theme === 'string') selectedTheme = message.theme;
-  });
-
-  child.on('error', error => {
-    playSound('error');
-    status = `Theme selector failed: ${error.message}`;
-    statusUntil = Date.now() + 3000;
-  });
-
-  child.on('exit', code => {
-    if (selectedTheme) setTheme(selectedTheme);
-    else reloadTheme();
-    if (code === 42) return restartApplication();
-    commandProcessActive = false;
-    process.stdin.setRawMode(true);
-    process.stdin.resume();
-    process.stdin.on('data', handleKey);
-    status = code === 0 ? `Skin applied: ${getTheme().toUpperCase()}.` : 'Skin selector closed unexpectedly.';
-    statusUntil = Date.now() + 1800;
-    process.stdout.write('\x1b[3J\x1b[2J\x1b[H');
-    render();
+    onMessage: message => {
+      if (message?.type === 'theme-selected' && typeof message.theme === 'string') selectedTheme = message.theme;
+    },
+    onExit: code => {
+      if (selectedTheme) setTheme(selectedTheme);
+      else reloadTheme();
+      if (code === 42) {
+        restartApplication();
+        return { restart: true };
+      }
+      return {
+        status: code === 0 ? `Skin applied: ${getTheme().toUpperCase()}.` : 'Skin selector closed unexpectedly.',
+      };
+    },
   });
 }
 
@@ -849,170 +913,69 @@ function restartApplication() {
 }
 
 function launchUpdateProcess() {
-  playLoadingCue();
-  commandProcessActive = true;
-  process.stdin.off('data', handleKey);
-  process.stdin.setRawMode(false);
-  process.stdin.pause();
-  process.stdout.write('\x1b[?25h\x1b[0m\x1b[3J\x1b[2J\x1b[H');
-
-  const child = spawn(process.execPath, [path.join(__dirname, 'updater.js')], {
-    cwd: __dirname,
-    stdio: 'inherit',
-  });
-
-  child.on('error', error => {
-    playSound('error');
-    status = `Update failed: ${error.message}`;
-    statusUntil = Date.now() + 3000;
-  });
-
-  child.on('exit', code => {
-    if (code === 42) return restartApplication();
-    commandProcessActive = false;
-    process.stdin.setRawMode(true);
-    process.stdin.resume();
-    process.stdin.on('data', handleKey);
-    if (code === 0) status = ':// is already up to date.';
-    else if (code === 2) status = 'Update failed: no internet connection.';
-    else if (code === 3) status = 'Update failed: GitHub rate limit. Try again shortly.';
-    else if (code === 4) status = 'Update failed: no release found on GitHub.';
-    else status = 'Update did not complete. Check the log above for details.';
-    statusUntil = Date.now() + 3500;
-    process.stdout.write('\x1b[3J\x1b[2J\x1b[H');
-    render();
+  launchNodeScreen({
+    script: 'updater.js',
+    onExit: code => {
+      if (code === 42) {
+        restartApplication();
+        return { restart: true };
+      }
+      const statuses = {
+        0: ':// is already up to date.',
+        2: 'Update failed: no internet connection.',
+        3: 'Update failed: GitHub rate limit. Try again shortly.',
+        4: 'Update failed: no release found on GitHub.',
+      };
+      return {
+        status: statuses[code] || 'Update did not complete. Check the log above for details.',
+        duration: 3500,
+      };
+    },
   });
 }
 
 function launchWordProcess() {
-  playLoadingCue();
-  commandProcessActive = true;
-  process.stdin.off('data', handleKey);
-  process.stdin.setRawMode(false);
-  process.stdin.pause();
-  process.stdout.write('\x1b[?25h\x1b[0m\x1b[3J\x1b[2J\x1b[H');
-
-  const child = spawn(process.execPath, [path.join(__dirname, 'word-mode.js')], {
-    cwd: __dirname,
-    stdio: 'inherit',
-  });
-
-  child.on('error', error => {
-    playSound('error');
-    status = `Word game failed: ${error.message}`;
-    statusUntil = Date.now() + 3000;
-  });
-
-  child.on('exit', code => {
-    commandProcessActive = false;
-    process.stdin.setRawMode(true);
-    process.stdin.resume();
-    process.stdin.on('data', handleKey);
-    status = code === 0 ? 'Word game closed.' : 'Word game closed unexpectedly.';
-    statusUntil = Date.now() + 1800;
-    process.stdout.write('\x1b[3J\x1b[2J\x1b[H');
-    render();
+  launchNodeScreen({
+    script: 'word-mode.js',
+    onExit: code => ({
+      status: code === 0 ? 'Word game closed.' : 'Word game closed unexpectedly.',
+    }),
   });
 }
 
 function launchGuideProcess() {
-  playLoadingCue();
-  commandProcessActive = true;
-  process.stdin.off('data', handleKey);
-  process.stdin.setRawMode(false);
-  process.stdin.pause();
-  process.stdout.write('\x1b[?25h\x1b[0m\x1b[3J\x1b[2J\x1b[H');
-
-  const child = spawn(process.execPath, [path.join(__dirname, 'guide-mode.js')], {
-    cwd: __dirname,
-    stdio: 'inherit',
-  });
-
-  child.on('error', error => {
-    playSound('error');
-    status = `Guide failed: ${error.message}`;
-    statusUntil = Date.now() + 3000;
-  });
-
-  child.on('exit', code => {
-    commandProcessActive = false;
-    process.stdin.setRawMode(true);
-    process.stdin.resume();
-    process.stdin.on('data', handleKey);
-    status = code === 0 ? 'Guide closed.' : 'Guide closed unexpectedly.';
-    statusUntil = Date.now() + 1800;
-    process.stdout.write('\x1b[3J\x1b[2J\x1b[H');
-    render();
+  launchNodeScreen({
+    script: 'guide-mode.js',
+    onExit: code => ({
+      status: code === 0 ? 'Guide closed.' : 'Guide closed unexpectedly.',
+    }),
   });
 }
 
 function launchNoteProcess(fixMode = false) {
-  playLoadingCue();
-  commandProcessActive = true;
-  process.stdin.off('data', handleKey);
-  process.stdin.setRawMode(false);
-  process.stdin.pause();
-  process.stdout.write('\x1b[?25h\x1b[0m\x1b[3J\x1b[2J\x1b[H');
-
-  const childArgs = [path.join(__dirname, 'note-mode.js')];
-  if (fixMode) childArgs.push('--fix');
-  const child = spawn(process.execPath, childArgs, {
-    cwd: __dirname,
-    stdio: 'inherit',
-  });
-
-  child.on('error', error => {
-    playSound('error');
-    status = `${fixMode ? 'Fix' : 'Note'} mode failed: ${error.message}`;
-    statusUntil = Date.now() + 3000;
-  });
-
-  child.on('exit', code => {
-    commandProcessActive = false;
-    process.stdin.setRawMode(true);
-    process.stdin.resume();
-    process.stdin.on('data', handleKey);
-    status = code === 0
-      ? `${fixMode ? 'Fix' : 'Note'} closed.`
-      : `${fixMode ? 'Fix' : 'Note'} could not be saved.`;
-    statusUntil = Date.now() + 1800;
-    process.stdout.write('\x1b[3J\x1b[2J\x1b[H');
-    render();
+  launchNodeScreen({
+    script: 'note-mode.js',
+    args: fixMode ? ['--fix'] : [],
+    onExit: code => ({
+      status: code === 0
+        ? `${fixMode ? 'Fix' : 'Note'} closed.`
+        : `${fixMode ? 'Fix' : 'Note'} could not be saved.`,
+    }),
   });
 }
 
 function launchCommandProcess(breakOnly = false) {
-  playLoadingCue();
-  commandProcessActive = true;
-  process.stdin.off('data', handleKey);
-  process.stdin.setRawMode(false);
-  process.stdin.pause();
-  process.stdout.write('\x1b[?25h\x1b[0m\x1b[3J\x1b[2J\x1b[H');
-
-  const childArgs = [path.join(__dirname, 'command-mode.js')];
-  if (breakOnly) childArgs.push('--brb-main');
-  const child = spawn(process.execPath, childArgs, {
-    cwd: __dirname,
-    stdio: 'inherit',
+  launchNodeScreen({
+    script: 'command-mode.js',
+    args: breakOnly ? ['--brb-main'] : [],
     env: { ...process.env, WORDFX_PARENT_ALT: '1', WORDFX_SKIP_STARTUP_SOUND: '1' },
-  });
-
-  child.on('error', error => {
-    playSound('error');
-    status = `Command mode failed: ${error.message}`;
-    statusUntil = Date.now() + 3000;
-  });
-
-  child.on('exit', code => {
-    if (code === 42) return restartApplication();
-    commandProcessActive = false;
-    process.stdin.setRawMode(true);
-    process.stdin.resume();
-    process.stdin.on('data', handleKey);
-    status = breakOnly ? 'Welcome back.' : 'Returned from command mode.';
-    statusUntil = Date.now() + 1800;
-    process.stdout.write('\x1b[3J\x1b[2J\x1b[H');
-    render();
+    onExit: code => {
+      if (code === 42) {
+        restartApplication();
+        return { restart: true };
+      }
+      return { status: breakOnly ? 'Welcome back.' : 'Returned from command mode.' };
+    },
   });
 }
 
@@ -1040,8 +1003,6 @@ function applyAutomaticNameEffects() {
   const names = [
     { text: 'cato', effect: 'rainbow' },
     { text: 'jared', effect: 'rainbow' },
-    { text: 'sally', effect: 'love' },
-    { text: 'selina', effect: 'love' },
   ];
   const isWordCharacter = ch => ch !== undefined && /^[a-z0-9_]$/i.test(ch);
   for (const cell of cells) {
@@ -1203,7 +1164,7 @@ process.stdout.on('resize', render);
 async function start() {
   mainScreenActive = true;
   process.stdout.write('\x1b[?1049h\x1b[2J\x1b[H');
-  await warmSoundSystem();
+  void warmSoundSystem(0);
   playSound('opening or loading');
   await playStartupAnimation();
 
@@ -1213,13 +1174,12 @@ async function start() {
   process.stdin.on('data', handleKey);
   lastFrameTime = Date.now();
   timer = setInterval(() => {
-    // Use delta time for smoother animations
     const now = Date.now();
-    const deltaTime = Math.min(100, now - lastFrameTime) / 1000; // Cap at 100ms
+    const deltaTime = Math.min(100, now - lastFrameTime) / 1000;
     lastFrameTime = now;
-
-    // Keep animation timing stable while rendering intermediate frames smoothly.
-    frame += deltaTime * 60; // 60 FPS target
+    if (!shouldRenderAnimationFrame(now)) return;
+    // Keep animation timing stable while avoiding full-screen idle repaints.
+    frame += deltaTime * 30;
     render();
   }, FRAME_INTERVAL);
   render();

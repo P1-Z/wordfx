@@ -6,7 +6,7 @@ const { ansi: colors } = require('./theme');
 const { playSound, warmSoundSystem } = require('./sound');
 
 if (!process.stdin.isTTY || !process.stdout.isTTY) process.exit(1);
-void warmSoundSystem();
+void warmSoundSystem(0);
 
 const entries = (() => {
   try {

@@ -106,7 +106,7 @@ function readSentence() {
 }
 
 async function main() {
-  await warmSoundSystem();
+  void warmSoundSystem(0);
   process.stdout.write('\x1b[r\x1b[3J\x1b[2J\x1b[H');
   process.stdin.setRawMode(true);
   process.stdin.resume();

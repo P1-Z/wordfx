@@ -12,6 +12,14 @@
       {
         "name": "ROOM_DIRECTORY",
         "class_name": "RoomDirectory"
+      },
+      {
+        "name": "GUILDS",
+        "class_name": "GuildRoom"
+      },
+      {
+        "name": "GUILD_DIRECTORY",
+        "class_name": "GuildDirectory"
       }
     ]
   },
@@ -23,6 +31,10 @@
     {
       "tag": "v2",
       "new_sqlite_classes": ["RoomDirectory"]
+    },
+    {
+      "tag": "v3",
+      "new_sqlite_classes": ["GuildRoom", "GuildDirectory"]
     }
   ],
   "observability": {
