@@ -12,7 +12,11 @@ if (Test-Path -LiteralPath $dist) {
 }
 New-Item -ItemType Directory -Path $stage -Force | Out-Null
 
-Get-ChildItem -LiteralPath $root -Filter '*.js' -File | Copy-Item -Destination $stage
+$trackedRootScripts = & git -C $root ls-files -- '*.js' |
+  Where-Object { $_ -notmatch '[\\/]' }
+foreach ($name in $trackedRootScripts) {
+  Copy-Item -LiteralPath (Join-Path $root $name) -Destination $stage
+}
 foreach ($name in @('package.json', 'README.md', 'relay-config.json', 'launch-wordfx.cmd', 'wordfx-icon.ico', 'wordfx-icon.png')) {
   $source = Join-Path $root $name
   if (Test-Path -LiteralPath $source) { Copy-Item -LiteralPath $source -Destination $stage }
